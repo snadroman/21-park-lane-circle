@@ -1,0 +1,68 @@
+% Columns used, features built from them, and what was dropped (and why).
+% Needs \usepackage{tabularx} in the preamble.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Columns used and the features built from them}
+\label{tab:columns-used}
+\begin{tabularx}{\textwidth}{p{2.7cm}Xp{3.3cm}}
+\hline
+Column & What we built & Where it is used \\
+\hline
+\texttt{sold\_price} & Target. Off-market: $\log(\mathrm{sold}) - \log(\mathrm{price\ index}_{\mathrm{seg,\,sale\ month}})$. List-aware: $\log(\mathrm{sold}/\mathrm{list}) - \mathrm{sold/list\ index}_{\mathrm{seg,\,sale\ month}}$ & Targets, both market indexes, all history features \\
+\texttt{list\_price} & \texttt{log\_list}; \texttt{log\_list\_rel} (vs price index at listing month); \texttt{over} (vs the home's estimated off-market value, fitted only on earlier sales) & List-aware features; sold/list index (both tracks, from training sales) \\
+\texttt{date\_listed} & \texttt{list\_m} (listing month, floored at Jan 2021); \texttt{drift} (index change from listing month to candidate sale month) & Features; averaging over possible sale months \\
+\texttt{date\_sold} & \texttt{sold\_m} (sale month) & Target's index month; ``strictly earlier'' cutoff for history features; listing-to-sale gap that weights the sale months \\
+\texttt{house\_type\_name} & Raw category; \texttt{segment} (condo apt incl.\ co-op, detached, semi + freehold townhouse, condo townhouse) & LightGBM category; which index a home follows \\
+\texttt{house\_style} & Raw category & LightGBM, hedonic dummies, previous-sale key \\
+\texttt{bedrooms}, \texttt{washrooms}, \texttt{parking\_total}, \texttt{garage} & Raw in LightGBM; capped (0--6, garage 0--4) in linear fits & Both tracks; bedrooms also in previous-sale key \\
+\texttt{house\_area} & \texttt{area\_num} (midpoint of ranges), \texttt{area\_is\_range}; log area in linear fits & Feature; denominator of every per-sq-ft history level \\
+\texttt{lot\_front}, \texttt{lot\_depth} & Raw; $\log(1+x)$ and a missing flag in linear fits & Both tracks \\
+\texttt{community} & Raw category; \texttt{comm\_trend\_12m}, \texttt{comm\_n\_12m} (community + segment: last 12 months vs usual level); \texttt{loc\_level\_same} & LightGBM, hedonic dummies, trend features \\
+\texttt{latitude}, \texttt{longitude} & Exact point = building / complex / house $\to$ \texttt{bld\_level}, \texttt{bld\_n}, \texttt{prev\_rel}, \texttt{prev\_age}. Metres $\to$ \texttt{loc\_level}, \texttt{loc\_weight}, \texttt{loc\_level\_same} (Gaussian-weighted nearby sales, $\sigma = 150$\,m, cut at 450\,m, own point excluded) & History features only, never raw \\
+\texttt{remarks} & \texttt{cond\_exp}, \texttt{cond\_class} (1--5 condition: phrase dictionary + latent-class model, TF-IDF fallback); \texttt{mot\_any}, \texttt{mot\_offers}, \texttt{mot\_quick\_close}, \texttt{mot\_flexible\_close} & Off-market: \texttt{mot\_any} only; list-aware: all four flags \\
+\texttt{ml\_num} & --- & Key for caching remark results \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Columns dropped}
+\label{tab:columns-dropped}
+\begin{tabularx}{\textwidth}{p{4.2cm}X}
+\hline
+Column & Reason \\
+\hline
+\texttt{external\_avm\_estimate}, \texttt{external\_avm\_estimate\_date} & Known only after the sale and absent from the test files; the AVM is dated after the sale, so it would leak the answer. Used only in a noise-floor analysis. \\
+\texttt{days\_on\_market} & Known only after the sale. The listing-to-sale gap is taken in months from the two dates instead, on training sales only. \\
+\texttt{municipality} & Assigned to communities at random by the generator: explains 4.4\% of community price levels ($p = 0.18$) and 2.3\% of sold/list ($p = 0.52$), about chance. \\
+Raw \texttt{latitude} / \texttt{longitude} & Replaced by the 300\,m features: 9.68\% MAPE without raw coordinates vs 9.65\% with them (summer backtest). Raw coordinates mostly reflect random community centres. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Engineered features built and later dropped}
+\label{tab:features-dropped}
+\begin{tabularx}{\textwidth}{p{4.2cm}X}
+\hline
+Feature & Reason \\
+\hline
+\texttt{moy}, \texttt{win\_lead} & Month of year; months from listing to the start of the possible sale months. Redundant once targets were measured against the sale month and predictions averaged over possible sale months. \\
+\texttt{nn\_level}, \texttt{nn\_dist} & Level of, and distance to, the 10 nearest sales. Replaced by the 300\,m features; \texttt{nn\_dist} added nothing on its own. \\
+$\sim$90 other remark tags & Features, target buyer, nearby amenities, writing style. Made the model slightly worse: off-market 10.91\% $\to$ 10.75\% MAPE without them, list-aware 6.09\% $\to$ 6.03\%. \\
+Per-component condition & Kitchen, bath, etc.\ scored separately; a single 5-level score did better. \\
+Soft pitches in the condition model & Blurred ``dated'' with ``original but in good shape''; the model uses only specific condition phrases. \\
+Semantic sentence matching (MiniLM) & 88\% exact condition level on reworded remarks vs 89\% for the final method. \\
+Property-type-level trend & No improvement in the Oct 31 experiments. \\
+\hline
+\end{tabularx}
+\end{table}
+
+% Rows: training sales before 2021-01-01 are excluded; index months with fewer than
+% 20 sales in a segment are interpolated from neighbouring months.

@@ -1,0 +1,16 @@
+# Install with:  pip install -r requirements.txt   (Python 3.10 or newer)
+pandas==2.3.3
+numpy==2.2.6; python_version < "3.14"
+numpy==2.3.5; python_version >= "3.14"
+pyarrow==22.0.0
+scikit-learn==1.7.2
+matplotlib==3.10.9
+huggingface_hub==2.1.1
+pytest==8.4.2
+
+# Added for our pipeline (see pipeline/). Install time is dominated by torch.
+scipy==1.16.3
+lightgbm==4.7.0
+torch==2.11.0
+pytorch-lightning==2.6.6
+darts==0.48.1
